@@ -6,14 +6,19 @@ use crossterm::{
     style::{self, Print, Color},
     terminal::{self, ClearType},
 };
-use std::io::{stdout, Write, Result};
-use std::sync::{Arc, Mutex};
-use std::thread;
-use std::time::Duration;
+use std::{
+    io::{stdout, Write, Result}, 
+    sync::{Arc, Mutex}, 
+    time::Duration,
+    thread
+};
+use bip39::{
+    Mnemonic, 
+    MnemonicType, 
+    Language
+};
 
 static SPINNER_FRAMES:&[&str]=&["⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧","⠇","⠏"];
-
-// help content to display in the help window
 static HELP_CONTENT: &[&str] = &[
     "Vbrute Help",
     "===========",
