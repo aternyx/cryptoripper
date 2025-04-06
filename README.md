@@ -17,13 +17,13 @@
   request. **Bailing out, you are on your own. Thanks for paying attention.**
 
 # Usage
-  Navigate the software as you would usually do in Vim. Type in `:?` for help.
-  Import your BLF and BIN files in the program using `:i <bin/blf> <path>`
-  Select mode using `:m <seed/pkey/milksad> [12/25]`, for searching using random seedphrase (normal or Milk Sad) or private keys. 
-  `[12/25]` is the amount of words for seedphrase, should be used for seed/milksad modes.
-  If you want to solve BTC puzzles or search for your wallet in a specified range, use `:rang <start> <end>`, e.g.: `:rang 80000000000000000 fffffffffffffffff`. Valid for btc pkey mode.
-  To search on a specific blockchain, use `:bc <btc/eth/bnb/xrp/doge/sol/ltc/bch/bsv>`.
-  If you want to output only addresses with balance, use `:cb <true/false | 1/0 | on/off>` or `:chkbal <true/false | 1/0 | on/off>`. By default, this is on, to avoid continuous output of random addresses.
+  - Navigate the software as you would usually do in Vim. Type in `:?` for help.
+  - Import your BLF and BIN files in the program using `:i <bin/blf> <path>`
+  - Select mode using `:m <seed/pkey/milksad> [12/25]`, for searching using random seedphrase (normal or Milk Sad) or private keys. 
+  - `[12/25]` is the amount of words for seedphrase, should be used for seed/milksad modes.
+  - If you want to solve BTC puzzles or search for your wallet in a specified range, use `:rang <start> <end>`, e.g.: `:rang 80000000000000000 fffffffffffffffff`. Valid for btc pkey mode.
+  - To search on a specific blockchain, use `:bc <btc/eth/bnb/xrp/doge/sol/ltc/bch/bsv>`.
+  - If you want to output only addresses with balance, use `:cb <true/false | 1/0 | on/off>` or `:chkbal <true/false | 1/0 | on/off>`. By default, this is on, to avoid continuous output of random addresses.
 
 # Building
   Build as usual using `cargo build`
