@@ -1,6 +1,6 @@
 use crossterm::{
     cursor::{self, MoveTo},
-    event::{self, Event, KeyCode},
+    event::{self, Event, KeyCode, KeyModifiers},
     execute,
     queue,
     style::{self, Print, Color},
@@ -12,6 +12,39 @@ use std::thread;
 use std::time::Duration;
 
 static SPINNER_FRAMES:&[&str]=&["⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧","⠇","⠏"];
+
+// help content to display in the help window
+static HELP_CONTENT: &[&str] = &[
+    "Vbrute Help",
+    "===========",
+    "",
+    "Help Navigation:",
+    "  j/↓ - Scroll down",
+    "  k/↑ - Scroll up",
+    "  h/← - Scroll left",
+    "  l/→ - Scroll right",
+    "  q   - Close help window",
+    "",
+    "Commands:",
+    "  :?                           - Show this help",
+    "  :q                           - Quit application",
+    "  :start                       - Start brute force simulation",
+    "  :stop                        - Stop brute force simulation",
+    "  :i <bin/blf> <path>          - Import database file",
+    "  :m <seed/pkey/milksad> [n]   - Set search mode with optional word count",
+    "  :bc <blockchain>             - Set target blockchain",
+    "",
+    "Supported blockchains:",
+    "  btc, eth, bnb, xrp, doge, sol, ltc, bch, bsv",
+    "",
+    "Examples:",
+    "  :i bin ~/path/to/db.bin      - Import binary database",
+    "  :i blf ~/path/to/db.blf      - Import BLF database",
+    "  :m seed 12                   - Set to 12-word seedphrase mode",
+    "  :m milksad 25                - Set to 25-word Milk Sad mode",
+    "  :m privkey                   - Set to random private keys mode",
+    "  :bc btc                      - Set target blockchain to Bitcoin",
+];
 
 fn main() -> Result<()> {
     let mut stdout = stdout();
@@ -25,40 +58,154 @@ fn main() -> Result<()> {
     let mut status_text = "idle".to_string();
     let spinner_running = Arc::new(Mutex::new(false));
     let spinner_row = rows - 1;
+    
+    // help window state
+    let mut showing_help = false;
+    let mut help_scroll_y = 0;
+    let mut help_scroll_x = 0;
 
     draw_welcome_screen(&mut stdout)?;
 
     loop {
         if event::poll(Duration::from_millis(100))? {
             if let Event::Key(key_event) = event::read()? {
-                match key_event.code {
-                    KeyCode::Char(':') if !typing_command => {
-                        typing_command = true;
-                        command_buffer.clear();
+                if showing_help {
+                    // handle keys when help window is shown
+                    match key_event.code {
+                        KeyCode::Char('q') | KeyCode::Esc => {
+                            showing_help = false;
+                            draw_welcome_screen(&mut stdout)?;
+                        },
+                        KeyCode::Char('j') | KeyCode::Down => {
+                            if help_scroll_y < HELP_CONTENT.len().saturating_sub(10) {
+                                help_scroll_y += 1;
+                                draw_help_window(&mut stdout, help_scroll_y, help_scroll_x)?;
+                            }
+                        },
+                        KeyCode::Char('k') | KeyCode::Up => {
+                            if help_scroll_y > 0 {
+                                help_scroll_y -= 1;
+                                draw_help_window(&mut stdout, help_scroll_y, help_scroll_x)?;
+                            }
+                        },
+                        KeyCode::Char('h') | KeyCode::Left => {
+                            if help_scroll_x > 0 {
+                                help_scroll_x -= 1;
+                                draw_help_window(&mut stdout, help_scroll_y, help_scroll_x)?;
+                            }
+                        },
+                        KeyCode::Char('l') | KeyCode::Right => {
+                            help_scroll_x += 1;
+                            draw_help_window(&mut stdout, help_scroll_y, help_scroll_x)?;
+                        },
+                        _ => {}
                     }
-                    KeyCode::Char(c) if typing_command => {
-                        command_buffer.push(c);
-                    }
-                    KeyCode::Backspace if typing_command => {
-                        command_buffer.pop();
-                    }
-                    KeyCode::Enter if typing_command => {
-                        if handle_command(&command_buffer, &mut status_text, spinner_running.clone(), spinner_row)? {
-                            terminal::disable_raw_mode()?;
-                            execute!(stdout, terminal::LeaveAlternateScreen)?;
-                            return Ok(());
+                } else {
+                    // handle keys when help window is not shown
+                    match key_event.code {
+                        KeyCode::Char(':') if !typing_command => {
+                            typing_command = true;
+                            command_buffer.clear();
                         }
-                        typing_command = false;
-                        command_buffer.clear();
+                        KeyCode::Char(c) if typing_command => {
+                            command_buffer.push(c);
+                        }
+                        KeyCode::Backspace if typing_command => {
+                            command_buffer.pop();
+                        }
+                        KeyCode::Enter if typing_command => {
+                            if command_buffer == "?" {
+                                // show help window
+                                showing_help = true;
+                                help_scroll_y = 0;
+                                help_scroll_x = 0;
+                                draw_help_window(&mut stdout, help_scroll_y, help_scroll_x)?;
+                                typing_command = false;
+                                command_buffer.clear();
+                            } else if handle_command(&command_buffer, &mut status_text, spinner_running.clone(), spinner_row)? {
+                                terminal::disable_raw_mode()?;
+                                execute!(stdout, terminal::LeaveAlternateScreen)?;
+                                return Ok(());
+                            } else {
+                                typing_command = false;
+                                command_buffer.clear();
+                            }
+                        }
+                        _ => {}
                     }
-                    _ => {}
                 }
             }
         }
-        draw_bottom(&mut stdout, &status_text, typing_command, &command_buffer)?;
+        
+        if !showing_help {
+            draw_bottom(&mut stdout, &status_text, typing_command, &command_buffer)?;
+        }
         stdout.flush()?;
     }
 }
+
+fn draw_help_window(stdout: &mut std::io::Stdout, scroll_y: usize, scroll_x: usize) -> Result<()> {
+    let (cols, rows) = terminal::size()?;
+    
+    // calc dimensions for the help window
+    let window_height = rows.saturating_sub(5) as usize;
+    let window_width = cols.saturating_sub(4) as usize;
+    let start_row = 2;
+    let start_col = 2;
+    
+    // clear the screen
+    queue!(
+        stdout,
+        terminal::Clear(ClearType::All),
+    )?;
+    
+    // draw the help content
+    for (i, line) in HELP_CONTENT.iter().skip(scroll_y).take(window_height).enumerate() {
+        let display_line = if line.len() > scroll_x {
+            &line[scroll_x.min(line.len())..line.len().min(scroll_x + window_width)]
+        } else {
+            ""
+        };
+        
+        queue!(
+            stdout,
+            cursor::MoveTo(start_col, start_row as u16 + i as u16),
+            style::Print(display_line),
+        )?;
+    }
+    
+    // draw the footer with instructions
+    queue!(
+        stdout,
+        cursor::MoveTo(start_col, rows - 3),
+        style::SetForegroundColor(Color::Yellow),
+        style::Print("Press 'q' to close help, arrow keys or hjkl to scroll"),
+        style::ResetColor,
+    )?;
+    
+    // draw the status bar
+    queue!(
+        stdout,
+        cursor::MoveTo(0, rows - 2),
+        terminal::Clear(ClearType::CurrentLine),
+        style::SetBackgroundColor(Color::White),
+        style::SetForegroundColor(Color::Black),
+        style::Print(" ".repeat(cols as usize)),
+        style::ResetColor,
+    )?;
+    queue!(
+        stdout,
+        cursor::MoveTo(0, rows - 2),
+        style::SetBackgroundColor(Color::White),
+        style::SetForegroundColor(Color::Black),
+        style::Print("Help"),
+        style::ResetColor,
+    )?;
+    
+    stdout.flush()?;
+    Ok(())
+}
+
 fn start_spinner(running: Arc<Mutex<bool>>, status_row: u16) {
     thread::spawn(move || {
         let mut stdout = stdout();
@@ -175,7 +322,8 @@ fn handle_command(command: &str, status_text: &mut String, spinner_running: Arc<
 
     match parts.get(0).map(|s| *s) {
         Some("?") => {
-            *status_text = "Commands: :start, :stop, :q, :i, :m, :bc".to_string();
+            // Help is now handled in the main loop
+            return Ok(false);
         }
         Some("start") => {
             *status_text = "Starting...".to_string();
