@@ -159,14 +159,25 @@ fn draw_bottom(
             style::Print(format!(":{}", command_buffer)),
         )?;
     }
-    Ok(())}
+    Ok(())
+}
 
 fn handle_command(command: &str, status_text: &mut String, spinner_running: Arc<Mutex<bool>>, spinner_row: u16) -> Result<bool> {
-    match command {
-        "?" => {
-            *status_text = "Commands: :start, :stop, :q".to_string();
+    // Split command into parts for commands that need arguments
+    let parts: Vec<&str> = command.split_whitespace().collect();
+    
+    // Static variables to store database paths and settings
+    static mut DBIN: Option<String> = None;
+    static mut DBLF: Option<String> = None;
+    static mut MODE: Option<String> = None;
+    static mut MODE_WORD_COUNT: usize = 0;
+    static mut BLOCKCHAIN: Option<String> = None;
+
+    match parts.get(0).map(|s| *s) {
+        Some("?") => {
+            *status_text = "Commands: :start, :stop, :q, :i, :m, :bc".to_string();
         }
-        "start" => {
+        Some("start") => {
             *status_text = "Starting...".to_string();
             let mut running = spinner_running.lock().unwrap();
             if !*running {
@@ -184,11 +195,99 @@ fn handle_command(command: &str, status_text: &mut String, spinner_running: Arc<
                 }
             });
         }
-        "stop" => {
+        Some("stop") => {
             *status_text = "Stopping...".to_string();
             *spinner_running.lock().unwrap() = false;
         }
-        "q" => {
+        Some("i") => {
+            if parts.len() < 3 {
+                *status_text = "Usage: :i <bin/blf> <path>".to_string();
+            } else {
+                let db_type = parts[1];
+                let path = parts[2..].join(" ");
+                
+                // Check if file exists
+                if std::path::Path::new(&path).exists() {
+                    unsafe {
+                        match db_type {
+                            "bin" => {
+                                DBIN = Some(path.clone());
+                                *status_text = format!("Imported {}", path);
+                            },
+                            "blf" => {
+                                DBLF = Some(path.clone());
+                                *status_text = format!("Imported {}", path);
+                            },
+                            _ => {
+                                *status_text = "Usage: :i <bin/blf> <path>".to_string();
+                            }
+                        }
+                    }
+                } else {
+                    *status_text = format!("Cannot import {}: inexistent", path);
+                }
+            }
+        }
+        Some("m") => {
+            if parts.len() < 2 {
+                *status_text = "Usage: :m <seed/pkey/milksad> [word count]".to_string();
+            } else {
+                let mode = parts[1].to_lowercase();
+                
+                unsafe {
+                    match mode.as_str() {
+                        "seed" => {
+                            let word_count = if parts.len() > 2 {
+                                parts[2].parse::<usize>().unwrap_or(12)
+                            } else {
+                                12
+                            };
+                            
+                            MODE = Some("seed".to_string());
+                            MODE_WORD_COUNT = word_count;
+                            *status_text = format!("Search mode set: {}-word seedphrase", word_count);
+                        },
+                        "milksad" => {
+                            let word_count = if parts.len() > 2 {
+                                parts[2].parse::<usize>().unwrap_or(25)
+                            } else {
+                                25
+                            };
+                            
+                            MODE = Some("milksad".to_string());
+                            MODE_WORD_COUNT = word_count;
+                            *status_text = format!("Search mode set: {}-word seedphrase (Milk Sad)", word_count);
+                        },
+                        "pkey" | "privkey" => {
+                            MODE = Some("privkey".to_string());
+                            MODE_WORD_COUNT = 0;
+                            *status_text = "Search mode set: Random private keys".to_string();
+                        },
+                        _ => {
+                            *status_text = "Usage: :m <seed/pkey/milksad> [word count]".to_string();
+                        }
+                    }
+                }
+            }
+        }
+        Some("bc") => {
+            if parts.len() < 2 {
+                *status_text = "Usage: :bc <btc/eth/bnb/xrp/doge/sol/ltc/bch/bsv>".to_string();
+            } else {
+                let blockchain = parts[1].to_lowercase();
+                let valid_blockchains = ["btc", "eth", "bnb", "xrp", "doge", "sol", "ltc", "bch", "bsv"];
+                
+                if valid_blockchains.contains(&blockchain.as_str()) {
+                    unsafe {
+                        BLOCKCHAIN = Some(blockchain.clone());
+                    }
+                    *status_text = format!("Target blockchain set: {}", blockchain.to_uppercase());
+                } else {
+                    *status_text = "Usage: :bc <btc/eth/bnb/xrp/doge/sol/ltc/bch/bsv>".to_string();
+                }
+            }
+        }
+        Some("q") => {
             return Ok(true);
         }
         _ => {

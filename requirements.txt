@@ -1,8 +1,0 @@
-asyncio
-bip32utils
-json
-requests
-random
-bitcoinlib
-colorama
-mnemonic
