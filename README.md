@@ -24,3 +24,6 @@
   If you want to solve BTC puzzles or search for your wallet in a specified range, use `:rang <start> <end>`, e.g.: `:rang 80000000000000000 fffffffffffffffff`. Valid for btc pkey mode.
   To search on a specific blockchain, use `:bc <btc/eth/bnb/xrp/doge/sol/ltc/bch/bsv>`.
   If you want to output only addresses with balance, use `:cb <true/false | 1/0 | on/off>` or `:chkbal <true/false | 1/0 | on/off>`. By default, this is on, to avoid continuous output of random addresses.
+
+# Building
+  Build as usual using `cargo build`
